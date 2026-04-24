@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Register{% endblock %}
+{% block content %}
+<div style="max-width:420px;margin:5rem auto;">
+
+  <div style="text-align:center;margin-bottom:2rem;" class="fade-up">
+    <div style="font-size:36px;font-weight:900;letter-spacing:-1px;margin-bottom:4px;">
+      Stock<span style="color:var(--green);">Sim</span><span style="color:var(--blue);">.</span>
+    </div>
+    <div style="color:var(--muted);font-size:13px;">Join thousands of virtual traders</div>
+  </div>
+
+  <div class="card fade-up delay-1" style="border-color:var(--border2);">
+    <h3 style="margin-bottom:1.5rem;font-size:16px;">Create your free account</h3>
+    <form method="POST">
+      <div style="margin-bottom:1rem;">
+        <label>Full name</label>
+        <input type="text" name="name" required placeholder="Your name" autofocus>
+      </div>
+      <div style="margin-bottom:1rem;">
+        <label>Email address</label>
+        <input type="email" name="email" required placeholder="you@email.com">
+      </div>
+      <div style="margin-bottom:1.5rem;">
+        <label>Password</label>
+        <input type="password" name="password" required placeholder="••••••••">
+      </div>
+      <button class="btn btn-green" style="width:100%;height:40px;font-size:14px;" type="submit">
+        Create Account — Get $100,000
+      </button>
+    </form>
+    <p style="text-align:center;margin-top:1.25rem;font-size:13px;color:var(--muted);">
+      Already have an account? <a href="/login" style="color:var(--blue);font-weight:500;">Sign in</a>
+    </p>
+  </div>
+
+  <div class="card fade-up delay-2" style="margin-top:1rem;padding:1rem 1.25rem;">
+    <div style="display:flex;gap:1rem;">
+      <div style="flex:1;text-align:center;">
+        <div style="font-size:18px;font-weight:700;color:var(--green);">$100K</div>
+        <div style="font-size:11px;color:var(--muted);">Virtual Cash</div>
+      </div>
+      <div style="flex:1;text-align:center;">
+        <div style="font-size:18px;font-weight:700;color:var(--blue);">Live</div>
+        <div style="font-size:11px;color:var(--muted);">Market Prices</div>
+      </div>
+      <div style="flex:1;text-align:center;">
+        <div style="font-size:18px;font-weight:700;color:var(--purple);">Any</div>
+        <div style="font-size:11px;color:var(--muted);">Stock Globally</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

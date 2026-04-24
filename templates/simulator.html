@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+{% block title %}Simulator{% endblock %}
+{% block content %}
+
+<div style="margin-bottom:1.5rem;" class="fade-up">
+  <h2 style="margin-bottom:4px;">Monte Carlo Simulator</h2>
+  <p style="color:var(--muted);font-size:13px;">
+    S(t+1) = S(t) · exp((μ − ½σ²)dt + σ√dt · Z) &nbsp;·&nbsp; USD stocks auto-converted to ₹ at live rate
+  </p>
+</div>
+
+<!-- Controls -->
+<div class="card fade-up delay-1" style="margin-bottom:1.5rem;">
+  <h3 style="margin-bottom:1rem;">Simulation Parameters</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1.25rem;align-items:end;">
+
+    <div>
+      <label>Stock (search any ticker)</label>
+      <div style="position:relative;">
+        <input id="simSearchInput" placeholder="AAPL, RELIANCE, TSLA…" autocomplete="off">
+        <div id="simDrop" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:8px;margin-top:4px;z-index:300;max-height:240px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);"></div>
+      </div>
+      <input type="hidden" id="simStockId">
+      <input type="hidden" id="simSymbol">
+      <div id="simStockInfo" style="display:none;margin-top:6px;padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:12px;display:flex;align-items:center;justify-content:space-between;">
+        <span id="simStockLabel" style="font-weight:600;"></span>
+        <span id="simStockPrice" style="color:var(--green);font-weight:700;"></span>
+      </div>
+    </div>
+
+    <div>
+      <label>Simulation Paths — <strong id="pathsVal" style="color:var(--text);">100</strong></label>
+      <input type="range" id="pathsSl" min="10" max="10000" step="10" value="100"
+             oninput="document.getElementById('pathsVal').textContent=Number(this.value).toLocaleString('en-IN')">
+      <div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap;">
+        <button class="btn btn-ghost btn-sm" onclick="setPaths(100)">100</button>
+        <button class="btn btn-ghost btn-sm" onclick="setPaths(500)">500</button>
+        <button class="btn btn-ghost btn-sm" onclick="setPaths(1000)">1K</button>
+        <button class="btn btn-ghost btn-sm" onclick="setPaths(5000)">5K</button>
+        <button class="btn btn-ghost btn-sm" style="border-color:var(--green);color:var(--green);" onclick="setPaths(10000)">10K</button>
+      </div>
+    </div>
+
+    <div>
+      <label>Trading Days — <strong id="daysVal" style="color:var(--text);">120</strong></label>
+      <input type="range" id="daysSl" min="30" max="365" step="5" value="120"
+             oninput="document.getElementById('daysVal').textContent=this.value">
+    </div>
+
+    <div>
+      <button class="btn btn-primary" onclick="simulate()" style="width:100%;height:38px;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Run Simulation
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Loading -->
+<div id="loadingMsg" style="display:none;text-align:center;padding:3rem;">
+  <div class="spinner" style="width:32px;height:32px;border-width:3px;margin:0 auto 1rem;"></div>
+  <div style="color:var(--muted);font-size:14px;">Running Monte Carlo simulation…</div>
+</div>
+
+<!-- Stat Cards -->
+<div class="grid4" id="statCards" style="margin-bottom:1.5rem;display:none;">
+  <div class="card fade-up"><div class="card-title">Current Price (₹)</div><div class="stat-val" id="sPrice">—</div></div>
+  <div class="card fade-up delay-1"><div class="card-title">Median Final (₹)</div><div class="stat-val" id="sMedian">—</div></div>
+  <div class="card fade-up delay-2"><div class="card-title">P10 Bear Case</div><div class="stat-val dn" id="sP10">—</div></div>
+  <div class="card fade-up delay-3"><div class="card-title">P90 Bull Case</div><div class="stat-val up" id="sP90">—</div></div>
+  <div class="card fade-up"><div class="card-title">Prob. of Profit</div><div class="stat-val" id="sProb">—</div></div>
+  <div class="card fade-up delay-1"><div class="card-title">Mean Final (₹)</div><div class="stat-val" id="sMean">—</div></div>
+  <div class="card fade-up delay-2"><div class="card-title">Std Deviation</div><div class="stat-val muted" id="sStd">—</div></div>
+</div>
+
+<!-- Charts -->
+<div id="chartsArea" style="display:none;">
+  <div class="card fade-up" style="margin-bottom:1.5rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+      <h3 id="chartTitle" style="margin:0;">Price Paths</h3>
+      <span class="badge badge-blue" id="pathsBadge"></span>
+    </div>
+    <div id="conversionNote" style="display:none;margin-bottom:0.75rem;"></div>
+    <div style="position:relative;height:320px;">
+      <canvas id="pathChart"></canvas>
+    </div>
+  </div>
+  <div class="card fade-up delay-1">
+    <h3>Final Price Distribution (₹)</h3>
+    <div style="position:relative;height:240px;">
+      <canvas id="distChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Quick picks -->
+<div id="quickPicks" class="fade-up delay-2" style="margin-top:1.5rem;">
+  <div style="color:var(--muted);font-size:12px;margin-bottom:0.75rem;font-weight:500;text-transform:uppercase;letter-spacing:0.06em;">Quick picks</div>
+  <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+    {% for s in stocks %}
+    <button class="btn btn-ghost btn-sm"
+            onclick="quickPick('{{ s.stock_id }}','{{ s.symbol }}','{{ s.company_name }}',{{ s.current_price }})">
+      {{ s.symbol }}
+    </button>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+let pathInst = null, distInst = null;
+let simDebounce;
+
+// ── SEARCH ───────────────────────────────────────────────────────────────────
+document.getElementById('simSearchInput').addEventListener('input', function() {
+  clearTimeout(simDebounce);
+  const q = this.value.trim();
+  const drop = document.getElementById('simDrop');
+  if (!q) { drop.style.display = 'none'; return; }
+  drop.style.display = 'block';
+  drop.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:12px;">Searching…</div>';
+  simDebounce = setTimeout(() => simSearch(q), 350);
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#simSearchInput') && !e.target.closest('#simDrop'))
+    document.getElementById('simDrop').style.display = 'none';
+});
+
+async function simSearch(q) {
+  try {
+    const res   = await fetch('/api/search?q=' + encodeURIComponent(q));
+    const items = await res.json();
+    const drop  = document.getElementById('simDrop');
+    if (!items.length) { drop.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:12px;">No results.</div>'; return; }
+    drop.innerHTML = items.map(function(item) {
+      const serialized = JSON.stringify(item).replace(/'/g, "\\'");
+      return '<div onclick=\'selectSimStock(' + serialized + ')\''
+        + ' style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);"'
+        + ' onmouseenter="this.style.background=\'var(--surface2)\'" onmouseleave="this.style.background=\'\'">'
+        + '<div class="stock-logo" style="width:28px;height:28px;font-size:9px;">' + item.symbol.substring(0,2) + '</div>'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-weight:700;font-size:12px;">' + item.symbol + (item.source === 'live' ? '<span class="live-dot" style="margin-left:4px;"></span>' : '') + '</div>'
+        + '<div style="font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + item.company_name + '</div>'
+        + '</div>'
+        + '<div style="text-align:right;font-size:12px;font-weight:600;">₹' + Number(item.price).toLocaleString('en-IN', {maximumFractionDigits:2}) + '</div>'
+        + '</div>';
+    }).join('');
+  } catch(e) {}
+}
+
+function selectSimStock(item) {
+  document.getElementById('simStockId').value     = item.stock_id || '';
+  document.getElementById('simSymbol').value      = item.symbol;
+  document.getElementById('simSearchInput').value = item.symbol + ' — ' + item.company_name;
+  document.getElementById('simDrop').style.display = 'none';
+
+  const info = document.getElementById('simStockInfo');
+  info.style.display = 'flex';
+  document.getElementById('simStockLabel').textContent = item.symbol + ' · ' + item.company_name;
+  document.getElementById('simStockPrice').textContent = '₹' + Number(item.price).toLocaleString('en-IN', {maximumFractionDigits:2});
+  document.getElementById('quickPicks').style.display = 'none';
+}
+
+function quickPick(stock_id, symbol, company_name, price) {
+  selectSimStock({stock_id, symbol, company_name, price, source:'db'});
+}
+
+window.onStockSelected = function(item) { selectSimStock(item); };
+
+function setPaths(n) {
+  document.getElementById('pathsSl').value = n;
+  document.getElementById('pathsVal').textContent = Number(n).toLocaleString('en-IN');
+}
+
+// ── SIMULATE ─────────────────────────────────────────────────────────────────
+function fmt(n) { return '₹' + Math.round(n).toLocaleString('en-IN'); }
+
+async function simulate() {
+  const stock_id = document.getElementById('simStockId').value;
+  const symbol   = document.getElementById('simSymbol').value;
+  const n_paths  = parseInt(document.getElementById('pathsSl').value);
+  const days     = parseInt(document.getElementById('daysSl').value);
+
+  if (!stock_id && !symbol) { alert('Please search and select a stock first.'); return; }
+
+  document.getElementById('loadingMsg').style.display  = 'block';
+  document.getElementById('loadingMsg').querySelector('div:last-child').textContent =
+    n_paths >= 5000 ? 'Running ' + Number(n_paths).toLocaleString('en-IN') + ' simulations — this may take a few seconds…'
+                    : 'Running Monte Carlo simulation…';
+  document.getElementById('chartsArea').style.display  = 'none';
+  document.getElementById('statCards').style.display   = 'none';
+
+  const body = {n_paths, days};
+  if (stock_id) body.stock_id = stock_id;
+  else          body.symbol   = symbol;
+
+  const res  = await fetch('/api/simulate', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  const data = await res.json();
+
+  document.getElementById('loadingMsg').style.display = 'none';
+  if (data.error) { alert(data.error); return; }
+
+  document.getElementById('sPrice').textContent  = fmt(data.stock.current_price);
+  document.getElementById('sMedian').textContent = fmt(data.median);
+  document.getElementById('sP10').textContent    = fmt(data.p10);
+  document.getElementById('sP90').textContent    = fmt(data.p90);
+  document.getElementById('sProb').textContent   = data.prob_profit + '%';
+  document.getElementById('sMean').textContent   = fmt(data.mean);
+  document.getElementById('sStd').textContent    = fmt(data.std);
+  document.getElementById('sMedian').className   = 'stat-val ' + (data.median >= data.stock.current_price ? 'up' : 'dn');
+  document.getElementById('sProb').style.color   = data.prob_profit >= 50 ? 'var(--green)' : 'var(--red)';
+
+  document.getElementById('statCards').style.display  = 'grid';
+  document.getElementById('chartsArea').style.display = 'block';
+
+  document.getElementById('chartTitle').textContent = data.stock.symbol + ' — ' + data.stock.company_name;
+  document.getElementById('pathsBadge').textContent = n_paths + ' paths · ' + days + ' days';
+
+  // Show conversion note if stock was USD
+  const convEl = document.getElementById('conversionNote');
+  if (data.stock.usd_inr) {
+    convEl.style.display = 'block';
+    convEl.innerHTML = '<span class="badge badge-blue">USD converted to ₹ at live rate 1 USD = ₹' + data.stock.usd_inr + '</span>';
+  } else {
+    convEl.style.display = 'none';
+  }
+
+  const labels = Array.from({length: data.paths[0].length}, (_, i) => i % 30 === 0 ? 'Day ' + i : '');
+
+  if (pathInst) pathInst.destroy();
+  pathInst = new Chart(document.getElementById('pathChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: data.paths.map((p, i) => ({
+        data: p,
+        borderColor: i === 0 ? '#00e676'
+                   : data.paths[i][data.paths[i].length-1] > data.stock.current_price
+                     ? 'rgba(0,230,118,0.12)' : 'rgba(255,68,68,0.12)',
+        borderWidth: i === 0 ? 2.5 : 0.7,
+        pointRadius: 0, tension: 0.3, fill: false
+      }))
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false, animation:{duration:600},
+      plugins:{legend:{display:false}, tooltip:{enabled:false}},
+      scales: {
+        x: {ticks:{color:'#6b7799',font:{size:10,family:'Inter'}}, grid:{color:'rgba(37,45,66,0.8)'}},
+        y: {ticks:{color:'#6b7799',font:{size:10,family:'Inter'}, callback: function(v){ return '₹'+Math.round(v).toLocaleString('en-IN'); }}, grid:{color:'rgba(37,45,66,0.8)'}}
+      }
+    }
+  });
+
+  const bins = 30;
+  const minF = Math.min(...data.finals), maxF = Math.max(...data.finals);
+  const step = (maxF - minF) / bins;
+  const counts = new Array(bins).fill(0);
+  const binLabels = [];
+  for (let i = 0; i < bins; i++) binLabels.push('₹' + Math.round(minF + i * step).toLocaleString('en-IN'));
+  data.finals.forEach(f => { counts[Math.min(Math.floor((f - minF) / step), bins - 1)]++; });
+
+  if (distInst) distInst.destroy();
+  distInst = new Chart(document.getElementById('distChart'), {
+    type: 'bar',
+    data: {
+      labels: binLabels,
+      datasets: [{
+        data: counts,
+        backgroundColor: counts.map((_, i) => (minF + i * step) >= data.stock.current_price
+          ? 'rgba(0,230,118,0.65)' : 'rgba(255,68,68,0.65)'),
+        borderRadius: 3, borderWidth: 0
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales: {
+        x: {ticks:{color:'#6b7799',font:{size:10,family:'Inter'},maxTicksLimit:8}, grid:{color:'rgba(37,45,66,0.8)'}},
+        y: {ticks:{color:'#6b7799',font:{size:10,family:'Inter'}}, grid:{color:'rgba(37,45,66,0.8)'}}
+      }
+    }
+  });
+}
+</script>
+{% endblock %}

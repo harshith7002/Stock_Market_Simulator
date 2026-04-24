@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}StockSim{% endblock %} — Pro Trading</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #060810;
+      --surface:  #0d1117;
+      --surface2: #161b27;
+      --surface3: #1e2535;
+      --border:   #252d42;
+      --border2:  #2e3a55;
+      --text:     #e4e8f5;
+      --muted:    #6b7799;
+      --green:    #00e676;
+      --green2:   #00c853;
+      --red:      #ff4444;
+      --red2:     #d32f2f;
+      --blue:     #2979ff;
+      --blue2:    #1565c0;
+      --amber:    #ffab00;
+      --purple:   #7c4dff;
+      --cyan:     #00e5ff;
+      --radius:   12px;
+      --glow-g:   0 0 20px rgba(0,230,118,0.3);
+      --glow-b:   0 0 20px rgba(41,121,255,0.3);
+      --glow-r:   0 0 20px rgba(255,68,68,0.3);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Animated background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% 0%,   rgba(41,121,255,0.07) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 90% 100%, rgba(0,230,118,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 40% at 50% 50%,  rgba(124,77,255,0.04) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    body > * { position: relative; z-index: 1; }
+
+    /* ── TICKER TAPE ── */
+    #ticker-wrap {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      overflow: hidden;
+      height: 32px;
+      display: flex;
+      align-items: center;
+    }
+    #ticker-tape {
+      display: flex;
+      gap: 3rem;
+      white-space: nowrap;
+      animation: ticker-scroll 60s linear infinite;
+      padding-left: 100%;
+    }
+    #ticker-tape:hover { animation-play-state: paused; }
+    @keyframes ticker-scroll {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-200%); }
+    }
+    .tick-item {
+      font-size: 12px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: default;
+    }
+    .tick-sym  { color: var(--text); letter-spacing: 0.05em; }
+    .tick-price { color: var(--muted); }
+    .tick-up   { color: var(--green); }
+    .tick-dn   { color: var(--red); }
+
+    /* ── NAVBAR ── */
+    nav {
+      background: rgba(13,17,23,0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      height: 58px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .nav-brand {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text);
+      text-decoration: none;
+      letter-spacing: -0.5px;
+      margin-right: 1.5rem;
+    }
+    .nav-brand span { color: var(--green); }
+    .nav-brand .dot { color: var(--blue); }
+    nav a.nav-link {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: 8px;
+      transition: all 0.2s;
+      display: flex; align-items: center; gap: 6px;
+    }
+    nav a.nav-link:hover { color: var(--text); background: var(--surface2); }
+    nav a.nav-link.active { color: var(--text); background: var(--surface3); }
+    .nav-spacer { flex: 1; }
+    .nav-actions { display: flex; align-items: center; gap: 0.75rem; }
+    .user-pill {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 5px 14px 5px 10px;
+      font-size: 12px;
+      color: var(--text);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .user-avatar {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: #fff;
+    }
+    .btn-logout {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 12px;
+      padding: 5px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      transition: all 0.2s;
+    }
+    .btn-logout:hover { color: var(--red); border-color: var(--red); }
+
+    /* Search trigger in nav */
+    .nav-search-btn {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 5px 14px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .nav-search-btn:hover { border-color: var(--blue); color: var(--text); }
+    .nav-search-btn kbd {
+      background: var(--surface3); border: 1px solid var(--border2);
+      border-radius: 4px; padding: 1px 5px; font-size: 10px;
+    }
+
+    /* ── CONTAINER ── */
+    .container { max-width: 1200px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: var(--border2); }
+    .card-glass {
+      background: rgba(13,17,23,0.6);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .card-title {
+      font-size: 11px; font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.5rem;
+    }
+
+    /* ── STAT CARDS ── */
+    .stat-val { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+    .stat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .up  { color: var(--green); }
+    .dn  { color: var(--red); }
+    .muted { color: var(--muted); }
+
+    /* ── GRIDS ── */
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 1rem; }
+    .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 1rem; }
+    .grid4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px,1fr)); gap: 1rem; }
+
+    /* ── TABLE ── */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      text-align: left; font-size: 11px; font-weight: 600;
+      color: var(--muted); padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    td { padding: 11px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+
+    /* ── BADGE ── */
+    .badge {
+      display: inline-flex; align-items: center;
+      font-size: 10px; font-weight: 600;
+      padding: 2px 8px; border-radius: 20px;
+      letter-spacing: 0.05em;
+    }
+    .badge-green  { background: rgba(0,230,118,0.12); color: var(--green); border: 1px solid rgba(0,230,118,0.25); }
+    .badge-red    { background: rgba(255,68,68,0.12);  color: var(--red);   border: 1px solid rgba(255,68,68,0.25); }
+    .badge-blue   { background: rgba(41,121,255,0.12); color: var(--blue);  border: 1px solid rgba(41,121,255,0.25); }
+    .badge-purple { background: rgba(124,77,255,0.12); color: var(--purple);border: 1px solid rgba(124,77,255,0.25); }
+
+    /* ── INPUTS ── */
+    input, select, textarea {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(41,121,255,0.12); }
+    input[type="range"] { padding: 0; height: 4px; cursor: pointer; accent-color: var(--blue); }
+    label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; margin-bottom: 5px; }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 9px 20px; border-radius: 8px;
+      font-size: 13px; font-weight: 600;
+      cursor: pointer; border: none;
+      font-family: inherit;
+      transition: all 0.15s;
+      letter-spacing: 0.02em;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: var(--blue);  color: #fff; }
+    .btn-primary:hover { background: #3d8bff; box-shadow: var(--glow-b); }
+    .btn-green   { background: var(--green); color: #000; font-weight: 700; }
+    .btn-green:hover { background: #33eb91; box-shadow: var(--glow-g); }
+    .btn-red     { background: var(--red);   color: #fff; }
+    .btn-red:hover   { background: #ff6565; box-shadow: var(--glow-r); }
+    .btn-ghost   { background: var(--surface2); border: 1px solid var(--border); color: var(--text); }
+    .btn-ghost:hover { border-color: var(--border2); }
+    .btn-sm { padding: 5px 12px; font-size: 11px; border-radius: 6px; }
+
+    /* ── ALERTS ── */
+    .alert { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 1rem; }
+    .alert-error   { background: rgba(255,68,68,0.1);    color: #ff8080; border: 1px solid rgba(255,68,68,0.3); }
+    .alert-success { background: rgba(0,230,118,0.1); color: #66ffb2; border: 1px solid rgba(0,230,118,0.3); }
+
+    /* ── STOCK LOGO ── */
+    .stock-logo {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; color: var(--muted);
+      overflow: hidden; flex-shrink: 0;
+    }
+    .stock-logo img { width: 100%; height: 100%; object-fit: contain; }
+
+    /* ── CHANGE PILL ── */
+    .change-pill {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 11px; font-weight: 600;
+      padding: 2px 7px; border-radius: 12px;
+    }
+    .change-pill.up { background: rgba(0,230,118,0.12); color: var(--green); }
+    .change-pill.dn { background: rgba(255,68,68,0.12);  color: var(--red); }
+
+    /* ── PROGRESS BAR ── */
+    .progress-bar { background: var(--surface2); border-radius: 4px; height: 4px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 4px; transition: width 0.8s ease; }
+
+    h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 1rem; }
+    h3 { font-size: 14px; font-weight: 600; margin-bottom: 0.75rem; }
+    .section-gap { margin-top: 2rem; }
+
+    /* ── SEARCH MODAL ── */
+    #searchModal {
+      position: fixed; inset: 0;
+      background: rgba(6,8,16,0.85);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      display: none;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 12vh;
+    }
+    #searchModal.open { display: flex; }
+    .search-box {
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 560px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05);
+      overflow: hidden;
+      animation: modal-in 0.18s ease;
+    }
+    @keyframes modal-in {
+      from { opacity: 0; transform: translateY(-16px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .search-input-wrap {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .search-input-wrap svg { color: var(--muted); flex-shrink: 0; }
+    #modalSearchInput {
+      background: none; border: none; color: var(--text);
+      font-size: 16px; font-weight: 500;
+      padding: 0; flex: 1;
+    }
+    #modalSearchInput:focus { box-shadow: none; }
+    #modalSearchInput::placeholder { color: var(--muted); }
+    .search-results { max-height: 340px; overflow-y: auto; }
+    .search-result-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 18px;
+      cursor: pointer;
+      transition: background 0.1s;
+      border-bottom: 1px solid var(--border);
+    }
+    .search-result-item:last-child { border-bottom: none; }
+    .search-result-item:hover, .search-result-item.selected {
+      background: var(--surface2);
+    }
+    .search-result-info { flex: 1; min-width: 0; }
+    .search-result-sym { font-weight: 700; font-size: 13px; }
+    .search-result-name { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .search-result-price { text-align: right; }
+    .search-result-price .price { font-weight: 600; font-size: 13px; }
+    .search-hint {
+      padding: 10px 18px;
+      font-size: 11px; color: var(--muted);
+      border-top: 1px solid var(--border);
+      display: flex; gap: 1rem;
+    }
+    .search-hint kbd {
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 4px; padding: 1px 5px; font-size: 10px;
+    }
+    .search-loading { padding: 1.5rem; text-align: center; color: var(--muted); font-size: 13px; }
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid var(--border2);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin: 0 auto 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulse-green {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(0,230,118,0); }
+      50%       { box-shadow: 0 0 0 4px rgba(0,230,118,0.2); }
+    }
+    @keyframes glow-border {
+      0%, 100% { border-color: var(--border); }
+      50%       { border-color: rgba(0,230,118,0.4); }
+    }
+    .fade-up { animation: fadeUp 0.4s ease both; }
+    .delay-1 { animation-delay: 0.05s; }
+    .delay-2 { animation-delay: 0.10s; }
+    .delay-3 { animation-delay: 0.15s; }
+    .delay-4 { animation-delay: 0.20s; }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: var(--surface); }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+    /* ── LIVE DOT ── */
+    .live-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green);
+      display: inline-block;
+      animation: pulse-green 2s infinite;
+    }
+
+    /* Sector chip */
+    .sector-chip {
+      font-size: 10px; font-weight: 500;
+      background: var(--surface3);
+      color: var(--muted);
+      border-radius: 4px; padding: 1px 6px;
+    }
+  </style>
+</head>
+<body>
+
+{% if session.user_id %}
+<!-- Ticker Tape -->
+<div id="ticker-wrap">
+  <div id="ticker-tape">
+    <span class="tick-item muted">Loading market data...</span>
+  </div>
+</div>
+
+<!-- Navbar -->
+<nav>
+  <a class="nav-brand" href="/dashboard">Stock<span>Sim</span><span class="dot">.</span></a>
+
+  <a href="/dashboard"   class="nav-link {% if request.path=='/dashboard'   %}active{% endif %}">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    Dashboard
+  </a>
+  <a href="/simulator"   class="nav-link {% if request.path=='/simulator'   %}active{% endif %}">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    Simulator
+  </a>
+  <a href="/leaderboard" class="nav-link {% if request.path=='/leaderboard' %}active{% endif %}">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 20 18 10"/><polyline points="12 20 12 4"/><polyline points="6 20 6 14"/></svg>
+    Leaderboard
+  </a>
+
+  <div class="nav-spacer"></div>
+  <div class="nav-actions">
+    <div class="nav-search-btn" onclick="openSearch()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      Search any stock
+      <kbd>Ctrl K</kbd>
+    </div>
+    <div class="user-pill">
+      <div class="user-avatar">{{ session.user_name[0].upper() }}</div>
+      {{ session.user_name }}
+    </div>
+    <a class="btn-logout" href="/logout">Logout</a>
+  </div>
+</nav>
+{% endif %}
+
+<!-- Global Search Modal -->
+<div id="searchModal" onclick="if(event.target===this)closeSearch()">
+  <div class="search-box">
+    <div class="search-input-wrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="modalSearchInput" placeholder="Search any stock — AAPL, RELIANCE, TSLA…" autocomplete="off" spellcheck="false">
+    </div>
+    <div id="searchResults" class="search-results"></div>
+    <div class="search-hint">
+      <span><kbd>↑↓</kbd> navigate</span>
+      <span><kbd>Enter</kbd> select</span>
+      <span><kbd>Esc</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }}">{{ message }}</div>
+    {% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+
+<script>
+// ── TICKER TAPE ─────────────────────────────────────────────────────────────
+async function loadTicker() {
+  try {
+    const res = await fetch('/api/market/trending');
+    const data = await res.json();
+    if (!data.length) return;
+    const tape = document.getElementById('ticker-tape');
+    const items = [...data, ...data, ...data]; // triple for seamless loop
+    tape.innerHTML = items.map(d => {
+      const up = d.change_pct >= 0;
+      return `<span class="tick-item">
+        <span class="tick-sym">${d.symbol}</span>
+        <span class="tick-price">₹${Number(d.price).toLocaleString('en-IN',{maximumFractionDigits:2})}</span>
+        <span class="${up?'tick-up':'tick-dn'}">${up?'▲':'▼'}${Math.abs(d.change_pct).toFixed(2)}%</span>
+      </span>`;
+    }).join('');
+  } catch(e) {}
+}
+if (document.getElementById('ticker-tape')) { loadTicker(); setInterval(loadTicker, 60000); }
+
+// ── SEARCH MODAL ─────────────────────────────────────────────────────────────
+let searchSel = -1, searchItems = [], searchDebounce;
+
+function openSearch() {
+  document.getElementById('searchModal').classList.add('open');
+  document.getElementById('modalSearchInput').focus();
+  searchSel = -1; searchItems = [];
+}
+function closeSearch() {
+  document.getElementById('searchModal').classList.remove('open');
+  document.getElementById('searchResults').innerHTML = '';
+  document.getElementById('modalSearchInput').value = '';
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); openSearch(); }
+  if (e.key === 'Escape') closeSearch();
+  if (!document.getElementById('searchModal').classList.contains('open')) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); moveSelection(1); }
+  if (e.key === 'ArrowUp')   { e.preventDefault(); moveSelection(-1); }
+  if (e.key === 'Enter')     { e.preventDefault(); selectItem(searchSel); }
+});
+
+function moveSelection(dir) {
+  const items = document.querySelectorAll('.search-result-item');
+  items.forEach(i => i.classList.remove('selected'));
+  searchSel = Math.max(0, Math.min(searchSel + dir, items.length - 1));
+  items[searchSel]?.classList.add('selected');
+  items[searchSel]?.scrollIntoView({block:'nearest'});
+}
+
+function selectItem(idx) {
+  if (idx < 0) idx = 0;
+  const item = searchItems[idx];
+  if (!item) return;
+  if (typeof window.onStockSelected === 'function') window.onStockSelected(item);
+  closeSearch();
+}
+
+document.getElementById('modalSearchInput')?.addEventListener('input', function() {
+  clearTimeout(searchDebounce);
+  const q = this.value.trim();
+  if (!q) { document.getElementById('searchResults').innerHTML = ''; return; }
+  document.getElementById('searchResults').innerHTML =
+    '<div class="search-loading"><div class="spinner"></div>Searching...</div>';
+  searchDebounce = setTimeout(() => doSearch(q), 320);
+});
+
+async function doSearch(q) {
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    searchItems = await res.json();
+    renderSearchResults(searchItems);
+  } catch(e) {
+    document.getElementById('searchResults').innerHTML =
+      '<div class="search-loading">Error fetching results.</div>';
+  }
+}
+
+function renderSearchResults(items) {
+  const el = document.getElementById('searchResults');
+  if (!items.length) {
+    el.innerHTML = '<div class="search-loading">No results found.</div>';
+    return;
+  }
+  el.innerHTML = items.map((item, i) => {
+    const up = (item.change_pct || 0) >= 0;
+    const pct = item.change_pct != null ? `<span class="change-pill ${up?'up':'dn'}">${up?'▲':'▼'}${Math.abs(item.change_pct).toFixed(2)}%</span>` : '';
+    return `<div class="search-result-item" onclick="selectItem(${i})">
+      <div class="stock-logo">${item.symbol.substring(0,2)}</div>
+      <div class="search-result-info">
+        <div class="search-result-sym">${item.symbol}
+          ${item.source==='live'?'<span class="live-dot" style="margin-left:4px"></span>':''}
+        </div>
+        <div class="search-result-name">${item.company_name}</div>
+      </div>
+      <div class="search-result-price">
+        <div class="price">₹${Number(item.price).toLocaleString('en-IN',{maximumFractionDigits:2})}</div>
+        ${pct}
+      </div>
+    </div>`;
+  }).join('');
+  searchSel = -1;
+}
+
+// Counter animation
+function animateCounter(el, target, prefix='$', duration=800) {
+  const start = 0;
+  const startTime = performance.now();
+  function update(now) {
+    const elapsed = now - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const ease = 1 - Math.pow(1 - progress, 3);
+    const current = start + (target - start) * ease;
+    el.textContent = prefix + Math.round(current).toLocaleString('en-IN');
+    if (progress < 1) requestAnimationFrame(update);
+    else el.textContent = prefix + target.toLocaleString('en-IN', {maximumFractionDigits:2});
+  }
+  requestAnimationFrame(update);
+}
+window.animateCounter = animateCounter;
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Leaderboard{% endblock %}
+{% block content %}
+
+<div style="margin-bottom:1.5rem;" class="fade-up">
+  <h2 style="margin-bottom:4px;">Leaderboard</h2>
+  <p style="color:var(--muted);font-size:13px;">Ranked by total wealth — wallet + portfolio market value</p>
+</div>
+
+<!-- Top 3 podium -->
+{% if rows|length >= 3 %}
+<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1.5rem;max-width:600px;margin-left:auto;margin-right:auto;" class="fade-up delay-1">
+  <!-- 2nd -->
+  <div class="card" style="text-align:center;padding:1.25rem 1rem;border-color:rgba(176,176,176,0.3);margin-top:1.5rem;">
+    <div style="font-size:28px;margin-bottom:0.5rem;">🥈</div>
+    <div style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#64748b,#94a3b8);display:flex;align-items:center;justify-content:center;margin:0 auto 0.5rem;font-size:16px;font-weight:800;color:#fff;">{{ rows[1].name[0].upper() }}</div>
+    <div style="font-weight:700;font-size:13px;margin-bottom:2px;">{{ rows[1].name[:12] }}</div>
+    <div style="font-size:12px;color:var(--muted);">${{ "{:,.0f}".format(rows[1].total_value) }}</div>
+  </div>
+  <!-- 1st -->
+  <div class="card" style="text-align:center;padding:1.5rem 1rem;border-color:rgba(255,215,0,0.4);background:rgba(255,215,0,0.04);box-shadow:0 0 30px rgba(255,215,0,0.08);">
+    <div style="font-size:36px;margin-bottom:0.5rem;">🥇</div>
+    <div style="width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#fbbf24);display:flex;align-items:center;justify-content:center;margin:0 auto 0.5rem;font-size:20px;font-weight:800;color:#000;box-shadow:0 0 20px rgba(245,158,11,0.4);">{{ rows[0].name[0].upper() }}</div>
+    <div style="font-weight:800;font-size:14px;margin-bottom:2px;">{{ rows[0].name[:12] }}</div>
+    <div style="font-size:13px;color:var(--amber);font-weight:600;">${{ "{:,.0f}".format(rows[0].total_value) }}</div>
+  </div>
+  <!-- 3rd -->
+  <div class="card" style="text-align:center;padding:1.25rem 1rem;border-color:rgba(180,120,60,0.3);margin-top:2rem;">
+    <div style="font-size:26px;margin-bottom:0.5rem;">🥉</div>
+    <div style="width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,#92400e,#d97706);display:flex;align-items:center;justify-content:center;margin:0 auto 0.5rem;font-size:14px;font-weight:800;color:#fff;">{{ rows[2].name[0].upper() }}</div>
+    <div style="font-weight:700;font-size:13px;margin-bottom:2px;">{{ rows[2].name[:12] }}</div>
+    <div style="font-size:12px;color:var(--muted);">${{ "{:,.0f}".format(rows[2].total_value) }}</div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Full Table -->
+<div class="card fade-up delay-2">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:44px;">#</th>
+        <th>Trader</th>
+        <th>Wallet</th>
+        <th>Portfolio</th>
+        <th>Total Wealth</th>
+        <th>vs $100K Start</th>
+        <th>Return</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+    {% set diff = row.total_value - 100000 %}
+    {% set pct  = (diff / 100000) * 100 %}
+    <tr>
+      <td>
+        <div style="width:28px;height:28px;border-radius:50%;
+          background:{% if loop.index==1 %}linear-gradient(135deg,#f59e0b,#fbbf24){% elif loop.index==2 %}linear-gradient(135deg,#64748b,#94a3b8){% elif loop.index==3 %}linear-gradient(135deg,#92400e,#d97706){% else %}var(--surface2){% endif %};
+          display:flex;align-items:center;justify-content:center;
+          font-size:11px;font-weight:700;
+          color:{% if loop.index<=3 %}#000{% else %}var(--muted){% endif %};">
+          {% if loop.index <= 3 %}{{ loop.index }}{% else %}{{ loop.index }}{% endif %}
+        </div>
+      </td>
+      <td>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:32px;height:32px;border-radius:50%;
+            background:linear-gradient(135deg,var(--blue),var(--purple));
+            display:flex;align-items:center;justify-content:center;
+            font-size:12px;font-weight:700;color:#fff;flex-shrink:0;">
+            {{ row.name[0].upper() }}
+          </div>
+          <span style="font-weight:600;">{{ row.name }}</span>
+        </div>
+      </td>
+      <td style="color:var(--muted);">${{ "{:,.0f}".format(row.wallet_balance) }}</td>
+      <td class="up">${{ "{:,.0f}".format(row.portfolio_value) }}</td>
+      <td style="font-weight:700;font-size:15px;">${{ "{:,.0f}".format(row.total_value) }}</td>
+      <td class="{% if diff >= 0 %}up{% else %}dn{% endif %}" style="font-weight:600;">
+        {% if diff >= 0 %}+{% endif %}${{ "{:,.0f}".format(diff) }}
+      </td>
+      <td>
+        <span class="change-pill {% if pct >= 0 %}up{% else %}dn{% endif %}">
+          {% if pct >= 0 %}▲{% else %}▼{% endif %}{{ "%.1f"|format(pct|abs) }}%
+        </span>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endblock %}

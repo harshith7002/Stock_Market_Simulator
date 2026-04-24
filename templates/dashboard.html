@@ -1,0 +1,391 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;" class="fade-up">
+  <div>
+    <h2 style="margin-bottom:2px;">Welcome back, {{ session.user_name }} 👋</h2>
+    <p style="color:var(--muted);font-size:13px;">
+      <span class="live-dot"></span>
+      Live market data &nbsp;·&nbsp; Last updated <span id="lastUpdate">just now</span>
+    </p>
+  </div>
+  <button class="btn btn-ghost btn-sm" onclick="refreshPrices()" id="refreshBtn">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+    Refresh prices
+  </button>
+</div>
+
+<!-- Stat Cards -->
+<div class="grid4" style="margin-bottom:1.5rem;">
+  <div class="card fade-up delay-1" style="border-left:3px solid var(--blue);">
+    <div class="card-title">Wallet Balance</div>
+    <div class="stat-val" id="walletVal">₹{{ "{:,.0f}".format(wallet.balance) }}</div>
+    <div class="stat-sub">Available cash</div>
+  </div>
+  <div class="card fade-up delay-2" style="border-left:3px solid var(--green);">
+    <div class="card-title">Portfolio Value</div>
+    <div class="stat-val up" id="portVal">₹{{ "{:,.0f}".format(portfolio_value) }}</div>
+    <div class="stat-sub">{{ holdings|length }} position{{ 's' if holdings|length != 1 else '' }}</div>
+  </div>
+  <div class="card fade-up delay-3" style="border-left:3px solid var(--purple);">
+    <div class="card-title">Total Wealth</div>
+    <div class="stat-val" id="totalVal">₹{{ "{:,.0f}".format(total_value) }}</div>
+    <div class="stat-sub">Wallet + Portfolio</div>
+  </div>
+  <div class="card fade-up delay-4" style="border-left:3px solid {% if total_value >= 100000 %}var(--green){% else %}var(--red){% endif %};">
+    <div class="card-title">P&amp;L vs Start</div>
+    {% set pnl = total_value - 100000 %}
+    <div class="stat-val {% if pnl >= 0 %}up{% else %}dn{% endif %}" id="pnlVal">
+      {% if pnl >= 0 %}+{% endif %}₹{{ "{:,.0f}".format(pnl) }}
+    </div>
+    <div class="stat-sub" style="color:{% if pnl >= 0 %}var(--green){% else %}var(--red){% endif %};">
+      {% set pnl_pct = (pnl / 100000) * 100 %}
+      {% if pnl >= 0 %}+{% endif %}{{ "%.2f"|format(pnl_pct) }}% return
+    </div>
+  </div>
+</div>
+
+<!-- Main Grid -->
+<div style="display:grid;grid-template-columns:1fr 360px;gap:1.5rem;align-items:start;">
+
+  <!-- LEFT -->
+  <div>
+    <div class="card fade-up" style="margin-bottom:1.5rem;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <h3 style="margin:0;">Holdings</h3>
+        {% if holdings %}<span class="badge badge-green">{{ holdings|length }} active</span>{% endif %}
+      </div>
+
+      {% if holdings %}
+      <div style="height:180px;margin-bottom:1.25rem;">
+        <canvas id="portPieChart"></canvas>
+      </div>
+      <table>
+        <thead><tr><th>Stock</th><th>Qty</th><th>Avg Cost</th><th>Current</th><th>Value</th><th>P&amp;L</th></tr></thead>
+        <tbody>
+        {% for h in holdings %}
+        <tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div class="stock-logo">
+                <img src="https://logo.clearbit.com/{{ h.symbol.lower() }}.com"
+                     onerror="this.parentNode.textContent='{{ h.symbol[:2] }}'"
+                     alt="" style="width:100%;height:100%;object-fit:contain;border-radius:6px;">
+              </div>
+              <div>
+                <div style="font-weight:700;font-size:13px;">{{ h.symbol }}</div>
+                <div style="font-size:11px;color:var(--muted);">{{ h.company_name[:22] }}</div>
+              </div>
+            </div>
+          </td>
+          <td style="font-weight:600;">{{ h.quantity }}</td>
+          <td style="color:var(--muted);">₹{{ "{:,.2f}".format(h.avg_cost) }}</td>
+          <td><span id="price-{{ h.symbol }}" style="font-weight:600;">₹{{ "{:,.2f}".format(h.current_price) }}</span></td>
+          <td style="font-weight:600;">₹{{ "{:,.0f}".format(h.quantity * h.current_price|float) }}</td>
+          <td>
+            <span id="pnl-{{ h.symbol }}" class="{% if h.pnl >= 0 %}up{% else %}dn{% endif %}" style="font-weight:600;">
+              {% if h.pnl >= 0 %}+{% endif %}₹{{ "{:,.2f}".format(h.pnl) }}
+            </span>
+            <div style="font-size:10px;color:var(--muted);">
+              {% set pnl_pct = ((h.current_price|float - h.avg_cost|float) / h.avg_cost|float * 100) %}
+              {% if pnl_pct >= 0 %}+{% endif %}{{ "%.1f"|format(pnl_pct) }}%
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div style="text-align:center;padding:2.5rem 1rem;">
+        <div style="font-size:40px;margin-bottom:0.75rem;">📈</div>
+        <div style="font-weight:600;margin-bottom:0.5rem;">No holdings yet</div>
+        <div style="color:var(--muted);font-size:13px;margin-bottom:1rem;">Search any stock and start trading!</div>
+        <button class="btn btn-primary btn-sm" onclick="openSearch()">Search Stocks</button>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="card fade-up">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <h3 style="margin:0;">Recent Transactions</h3>
+        <span class="badge badge-blue">Last 10</span>
+      </div>
+      {% if transactions %}
+      <table>
+        <thead><tr><th>Type</th><th>Stock</th><th>Qty</th><th>Price</th><th>Total</th><th>Time</th></tr></thead>
+        <tbody>
+        {% for t in transactions %}
+        <tr>
+          <td><span class="badge {% if t.transaction_type=='BUY' %}badge-green{% else %}badge-red{% endif %}">{{ t.transaction_type }}</span></td>
+          <td><strong>{{ t.symbol }}</strong></td>
+          <td>{{ t.quantity }}</td>
+          <td>₹{{ "{:,.2f}".format(t.price) }}</td>
+          <td style="font-weight:600;">₹{{ "{:,.0f}".format(t.total_amount) }}</td>
+          <td style="color:var(--muted);font-size:11px;">{{ t.timestamp.strftime('%d %b, %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p style="color:var(--muted);font-size:13px;padding:1rem 0;">No transactions yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div>
+    <div class="card fade-up" style="position:sticky;top:80px;margin-bottom:1rem;">
+      <h3 style="margin-bottom:1rem;">Place Order</h3>
+      <div id="tradeMsg" style="display:none;margin-bottom:1rem;"></div>
+
+      <div style="margin-bottom:1rem;">
+        <label>Stock</label>
+        <div style="position:relative;">
+          <input id="tradeSearchInput" placeholder="Search: AAPL, RELIANCE, TSLA…" autocomplete="off" style="padding-right:36px;">
+          <div style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted);">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <div id="tradeDrop" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border2);border-radius:8px;margin-top:4px;z-index:200;max-height:220px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);"></div>
+        </div>
+      </div>
+
+      <div id="selectedStockCard" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:1rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-weight:700;font-size:15px;" id="selSymbol">—</div>
+            <div style="font-size:11px;color:var(--muted);" id="selName">—</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-weight:700;font-size:18px;" id="selPrice">—</div>
+            <div id="selChange"></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:1rem;">
+        <label>Quantity</label>
+        <input type="number" id="tradeQty" value="1" min="1" max="10000">
+      </div>
+
+      <div style="margin-bottom:1.25rem;padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:4px;">
+          <span>Estimated Total</span>
+          <span id="tradeEst" style="color:var(--text);font-weight:600;">₹0</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);">
+          <span>Available Balance</span>
+          <span style="color:var(--text);">₹{{ "{:,.2f}".format(wallet.balance) }}</span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+        <button class="btn btn-green" onclick="trade('BUY')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+          BUY
+        </button>
+        <button class="btn btn-red" onclick="trade('SELL')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          SELL
+        </button>
+      </div>
+    </div>
+
+    <div class="card fade-up delay-2">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:1rem;">
+        <h3 style="margin:0;">Market Overview</h3>
+        <span class="live-dot"></span>
+      </div>
+      <div id="marketList"><div style="color:var(--muted);font-size:13px;">Loading...</div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let selectedStock = null;
+
+window.onStockSelected = function(item) { setSelectedStock(item); };
+
+function setSelectedStock(item) {
+  selectedStock = item;
+  document.getElementById('tradeSearchInput').value = item.symbol + ' — ' + item.company_name;
+  document.getElementById('tradeDrop').style.display = 'none';
+  document.getElementById('selectedStockCard').style.display = 'block';
+  document.getElementById('selSymbol').textContent = item.symbol;
+  document.getElementById('selName').textContent   = item.company_name;
+  document.getElementById('selPrice').textContent  = '₹' + Number(item.price).toLocaleString('en-IN', {maximumFractionDigits:2});
+  const up  = (item.change_pct || 0) >= 0;
+  const pct = item.change_pct != null
+    ? '<span class="change-pill ' + (up?'up':'dn') + '">' + (up?'▲':'▼') + Math.abs(item.change_pct).toFixed(2) + '%</span>'
+    : '';
+  document.getElementById('selChange').innerHTML = pct;
+  updateEst();
+}
+
+let inlineDebounce;
+document.getElementById('tradeSearchInput').addEventListener('input', function() {
+  clearTimeout(inlineDebounce);
+  const q = this.value.trim();
+  const drop = document.getElementById('tradeDrop');
+  if (!q) { drop.style.display = 'none'; return; }
+  drop.style.display = 'block';
+  drop.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:12px;">Searching…</div>';
+  inlineDebounce = setTimeout(() => inlineSearch(q), 350);
+});
+
+document.getElementById('tradeSearchInput').addEventListener('focus', function() {
+  if (this.value.trim()) document.getElementById('tradeDrop').style.display = 'block';
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#tradeSearchInput') && !e.target.closest('#tradeDrop'))
+    document.getElementById('tradeDrop').style.display = 'none';
+});
+
+async function inlineSearch(q) {
+  try {
+    const res   = await fetch('/api/search?q=' + encodeURIComponent(q));
+    const items = await res.json();
+    const drop  = document.getElementById('tradeDrop');
+    if (!items.length) { drop.innerHTML = '<div style="padding:10px 14px;color:var(--muted);font-size:12px;">No results.</div>'; return; }
+    drop.innerHTML = items.map(function(item) {
+      const up = (item.change_pct || 0) >= 0;
+      return '<div onclick=\'setSelectedStock(' + JSON.stringify(item).replace(/'/g, "\\'") + ')\''
+        + ' style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background 0.1s;"'
+        + ' onmouseenter="this.style.background=\'var(--surface2)\'" onmouseleave="this.style.background=\'\'">'
+        + '<div class="stock-logo" style="width:28px;height:28px;font-size:9px;">' + item.symbol.substring(0,2) + '</div>'
+        + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-weight:700;font-size:12px;">' + item.symbol + (item.source === 'live' ? '<span class="live-dot" style="margin-left:4px;"></span>' : '') + '</div>'
+        + '<div style="font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + item.company_name + '</div>'
+        + '</div>'
+        + '<div style="text-align:right;font-size:12px;">'
+        + '<div style="font-weight:600;">₹' + Number(item.price).toLocaleString('en-IN', {maximumFractionDigits:2}) + '</div>'
+        + (item.change_pct != null ? '<div style="font-size:10px;color:' + (up?'var(--green)':'var(--red)') + ';">' + (up?'▲':'▼') + Math.abs(item.change_pct).toFixed(2) + '%</div>' : '')
+        + '</div></div>';
+    }).join('');
+  } catch(e) {}
+}
+
+function updateEst() {
+  const qty   = parseInt(document.getElementById('tradeQty').value) || 0;
+  const price = selectedStock ? selectedStock.price : 0;
+  document.getElementById('tradeEst').textContent = '₹' + (qty * price).toLocaleString('en-IN', {maximumFractionDigits:2});
+}
+document.getElementById('tradeQty').addEventListener('input', updateEst);
+
+async function trade(type) {
+  if (!selectedStock) { showMsg('error', 'Please search and select a stock first.'); return; }
+  const quantity = parseInt(document.getElementById('tradeQty').value);
+  if (!quantity || quantity < 1) { showMsg('error', 'Enter a valid quantity.'); return; }
+
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '…';
+
+  const body = { type, quantity };
+  if (selectedStock.stock_id) body.stock_id = selectedStock.stock_id;
+  else body.symbol = selectedStock.symbol;
+
+  const res  = await fetch('/api/trade', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  const data = await res.json();
+  btn.disabled = false; btn.textContent = type;
+
+  if (data.success) {
+    showMsg('success', data.message + ' | Balance: ₹' + data.new_balance.toLocaleString('en-IN'));
+    setTimeout(() => location.reload(), 1800);
+  } else {
+    showMsg('error', data.error);
+  }
+}
+
+function showMsg(type, text) {
+  const el = document.getElementById('tradeMsg');
+  el.style.display = 'block';
+  el.className = 'alert alert-' + type;
+  el.textContent = text;
+}
+
+{% if holdings %}
+(async () => {
+  try {
+    const res  = await fetch('/api/portfolio/chart');
+    const data = await res.json();
+    if (!data.length) return;
+    const colors = ['#00e676','#2979ff','#ff4444','#ffab00','#7c4dff','#00e5ff','#ff6d00','#76ff03'];
+    new Chart(document.getElementById('portPieChart'), {
+      type: 'doughnut',
+      data: {
+        labels: data.map(d => d.symbol),
+        datasets: [{ data: data.map(d => d.value), backgroundColor: data.map((_, i) => colors[i % colors.length]), borderWidth:2, borderColor:'var(--surface)' }]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false, cutout:'68%',
+        plugins: {
+          legend: { position:'right', labels:{color:'#6b7799',font:{size:11,family:'Inter'},boxWidth:10,padding:12} },
+          tooltip: { callbacks: { label: ctx => ' ' + ctx.label + ': ₹' + Math.round(ctx.parsed).toLocaleString('en-IN') } }
+        },
+        animation: { animateRotate:true, duration:800 }
+      }
+    });
+  } catch(e) {}
+})();
+{% endif %}
+
+async function loadMarket() {
+  try {
+    const res  = await fetch('/api/market/trending');
+    const data = await res.json();
+    const el   = document.getElementById('marketList');
+    if (!data.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px;">No data.</div>'; return; }
+    el.innerHTML = data.map(function(d) {
+      const up  = d.change_pct >= 0;
+      const bar = Math.min(Math.abs(d.change_pct) * 20, 100);
+      const item = JSON.stringify({stock_id:null, symbol:d.symbol, company_name:d.symbol, price:d.price, change_pct:d.change_pct, source:'live'}).replace(/'/g,"\\'");
+      return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);cursor:pointer;" onclick=\'setSelectedStock(' + item + ')\'>'
+        + '<div style="width:36px;font-weight:700;font-size:12px;flex-shrink:0;">' + d.symbol + '</div>'
+        + '<div style="flex:1;"><div class="progress-bar"><div class="progress-fill" style="width:' + bar + '%;background:' + (up?'var(--green)':'var(--red)') + '"></div></div></div>'
+        + '<div style="text-align:right;flex-shrink:0;">'
+        + '<div style="font-size:12px;font-weight:600;">₹' + Number(d.price).toLocaleString('en-IN',{maximumFractionDigits:2}) + '</div>'
+        + '<div style="font-size:10px;color:' + (up?'var(--green)':'var(--red)') + ';">' + (up?'▲':'▼') + Math.abs(d.change_pct).toFixed(2) + '%</div>'
+        + '</div></div>';
+    }).join('') + '<div style="padding-top:8px;font-size:10px;color:var(--muted);text-align:center;">Click any stock to trade it instantly</div>';
+  } catch(e) {}
+}
+loadMarket();
+setInterval(loadMarket, 45000);
+
+const holdingSymbols = {{ holdings|map(attribute='symbol')|list|tojson }};
+
+async function refreshPrices() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  for (const sym of holdingSymbols) {
+    try {
+      const r = await fetch('/api/price/' + sym);
+      const d = await r.json();
+      if (d.price) {
+        const el = document.getElementById('price-' + sym);
+        if (el) {
+          el.style.transition = 'color 0.4s';
+          el.style.color = 'var(--amber)';
+          el.textContent = '₹' + Number(d.price).toLocaleString('en-IN', {maximumFractionDigits:2});
+          setTimeout(() => { el.style.color = ''; }, 900);
+        }
+      }
+    } catch(e) {}
+  }
+  document.getElementById('lastUpdate').textContent = 'just now';
+  btn.disabled = false;
+}
+
+if (holdingSymbols.length) setInterval(refreshPrices, 60000);
+
+window.addEventListener('load', () => {
+  animateCounter(document.getElementById('walletVal'),  {{ wallet.balance|float }});
+  animateCounter(document.getElementById('portVal'),    {{ portfolio_value|float }});
+  animateCounter(document.getElementById('totalVal'),   {{ total_value|float }});
+  const pnlEl  = document.getElementById('pnlVal');
+  const pnlAmt = {{ total_value - 100000 }};
+  animateCounter(pnlEl, Math.abs(pnlAmt), (pnlAmt >= 0 ? '+' : '-') + '₹');
+});
+</script>
+{% endblock %}
